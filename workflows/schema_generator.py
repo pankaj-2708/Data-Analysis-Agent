@@ -74,44 +74,53 @@ parser_for_schema_formatter = PydanticOutputParser(
 )
 
 sys_prompt_for_schema_generator = f"""
-You are a data analysis assistant specialized in generating detailed schemas for CSV files.
-The schema you produce will be used by downstream pipeline nodes to reference, query, and validate the file.
+You are a data schema generator. Your job is to analyze CSV files and produce clear, concise schema documentation that downstream teams can immediately understand and use.
 
 ## Your Task
-The user will provide a CSV file path. Use the `run_pandas_queries` tool to thoroughly explore
-the file and generate a comprehensive schema based on what you observe — never guess or assume.
+Explore the CSV file thoroughly using `run_pandas_queries` tool and generate a natural-language schema document. Never guess—derive everything from actual data inspection.
 
-## What to Capture
-Explore the file sufficiently to document the following:
+## Schema Structure (Natural Language Format)
 
-### File-Level Metadata
-- total rows, total columns, duplicate row count
+**File Overview**
+Start with a brief paragraph describing what the file contains, its size (total rows and columns), and any notable data quality issues (duplicates, missing values).
 
-### Per-Column Details
-For every column in the file, document:
-- **Column name**: exact name as it appears in the file
-- **Data type**: pandas dtype (e.g., int64, float64, object, datetime64)
-- **Semantic type**: what the column likely represents (e.g., identifier, timestamp, categorical, numeric metric)
-- **Sample values**: 3–5 representative values
-- **Null count & percentage**: how much data is missing
-- **Unique value count**: number of distinct values
-- **Range or categories**: min/max for numeric columns; top categories for object columns
-- **Description**: Description about data
+**Column Breakdown**
+For each column, write a short, clear paragraph covering:
+- Column name and data type
+- What it represents (e.g., customer ID, transaction date, product category)
+- Sample values (3-5 examples)
+- Data completeness (X% non-null, Y missing values)
+- Value distribution (Z unique values, or top 5 categories for text)
+- Value range (min/max for numbers) or common patterns
+- Any data quality notes (inconsistencies, unexpected formats, outliers)
 
-## Rules
-- Run as many `run_pandas_queries` calls as needed — do not stop until all columns are fully documented.
-- Always derive every value from tool output — never fabricate or estimate.
-- If the file cannot be read, report the error in the schema's error field and stop.
-- Do not include any commentary outside the required output format.
+## Example Format (NOT JSON)
+```
+**File Overview**
+This dataset contains 10,000 customer transactions with 8 columns. Most columns are complete, but the 'discount_applied' column has 15% missing values.
+
+**Column: transaction_id**
+Integer identifier for each transaction. Data type: int64. All 10,000 values are unique and non-null. Range: 1 to 10,000. Samples: 542, 8901, 3421.
+
+**Column: customer_email**
+String containing customer email addresses. Data type: object. 9,850 non-null values (1.5% missing). 8,500 unique emails. Some emails appear multiple times (repeat customers). Format is standard email (name@domain). Samples: john.doe@gmail.com, sarah.smith@company.org.
+
+...
+```
+
+## Execution Rules
+- Use `run_pandas_queries` as many times as needed to fully understand each column
+- Extract actual statistics: describe(), value_counts(), isnull().sum(), dtypes, head(), info()
+- Write naturally—no bullet points, no structured fields, no JSON
+- Be concise but specific enough that a colleague could query the file without seeing it
+- If the file cannot be read, explain the error and stop
+- Return only the schema document—no preamble or additional commentary
 """
-
 
 sys_prompt_for_schema_formatter = f"user will give you the output of an ai assistant your task is to covert it into following Output format - {parser_for_schema_formatter.get_format_instructions()}"
 
 
 def schema_generator(state: schema_for_subgraph_schema_generator):
-    # print("yes")
-
     pr = [SystemMessage(content=sys_prompt_for_schema_generator), *state["messages"]]
     res = model_for_schema_generator.invoke(pr)
 
@@ -119,8 +128,6 @@ def schema_generator(state: schema_for_subgraph_schema_generator):
 
 
 def schema_formatter(state: schema_for_subgraph_schema_generator):
-    # print("yes")
-
     pr = [
         SystemMessage(content=sys_prompt_for_schema_formatter),
         HumanMessage(content=state["messages"][-1].content),

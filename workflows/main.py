@@ -1,31 +1,35 @@
 from typing import TypedDict, Annotated
-from langchain_community.document_loaders.csv_loader import CSVLoader
 from langchain_core.messages import (
     SystemMessage,
-    BaseMessage,
     HumanMessage,
-    ToolMessage,
 )
 from langchain_core.output_parsers import PydanticOutputParser
 from langchain_nvidia_ai_endpoints import ChatNVIDIA
 from langchain_core.tools import tool
 from langgraph.graph import StateGraph, START, END
-from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.graph.message import add_messages
-from langgraph.checkpoint.memory import InMemorySaver
 from pydantic import Field, BaseModel
-from typing import List, Optional, Literal
+from typing import List
 from dotenv import load_dotenv
 from graph_query_executor import workflow_for_graph_query
-from pandas_query_executor import workflow_for_pandas_query,schema_for_pandas_query_formatter
+from pandas_query_executor import (
+    workflow_for_pandas_query,
+    schema_for_pandas_query_formatter,
+)
 from schema_generator import schema_generator_workflow
 import os
 import operator
 import asyncio
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.types import Send
-from IPython.display import Markdown,display
+from IPython.display import Markdown, display
+import sqlite3
+from langgraph.checkpoint.memory import InMemorySaver
+
+
 load_dotenv()
+
+image_folder = "C:/Users/panka/genai_project/data_analysis_agent/data"
 
 
 async def load_tools():
@@ -53,7 +57,9 @@ tools = asyncio.run(load_tools())
 load_dotenv()
 os.environ["LANGSMITH_PROJECT"] = "data-analysis-agent-testing"
 
-model_for_markdown_generator=ChatNVIDIA(model="mistralai/mistral-small-4-119b-2603",max_completion_tokens=10000)
+model_for_markdown_generator = ChatNVIDIA(
+    model="mistralai/mistral-small-4-119b-2603", max_completion_tokens=10000
+)
 model_for_query_generator = ChatNVIDIA(
     model="mistralai/mistral-small-4-119b-2603", max_completion_tokens=10000
 )
@@ -73,7 +79,7 @@ parser_for_pandas_query_generator = PydanticOutputParser(
 class schema_for_graph_query_generator_util(BaseModel):
     queries_description: str = Field(..., description="querie description")
     image_name: str = Field(
-        ..., description="Name of the file for chart/graph should be a png file"
+        ..., description="Name of the file for chart/graph it should be a png file "
     )
 
 
@@ -87,48 +93,121 @@ parser_for_graph_query_generator = PydanticOutputParser(
 
 
 class schema_for_main_graph(TypedDict):
-    file_path:str
-    pandas_queries:List[schema_for_pandas_query_generator]
-    graph_queries:List[schema_for_graph_query_generator]
-    pandas_results:Annotated[List[schema_for_pandas_query_formatter],operator.add]
-    csv_schema:str
-    markdown:str
+    file_path: str
+    pandas_queries: List[schema_for_pandas_query_generator]
+    graph_queries: List[schema_for_graph_query_generator]
+    pandas_results: Annotated[List[schema_for_pandas_query_formatter], operator.add]
+    csv_schema: str
+    markdown: str
 
 
 sys_prompt_for_pandas_query_generator = f"""
-You are a senior data analyst specializing in statistical analysis using Python and pandas.
+You are a senior data analyst specializing in exploratory data analysis using Python and pandas.
 
-The user will provide a description of a CSV file. Your task is to generate descriptions of all pandas queries required to produce a comprehensive statistical analysis report of the data.
+The user will provide a CSV file description and schema. Your task is to generate comprehensive descriptions of ALL pandas queries needed to deeply understand the data—from basic summaries to advanced statistical insights.
 
-STRICT RULES:
-1. Generate ONLY statistical queries — descriptive stats, distributions, correlations, aggregations, value counts, missing value analysis, outlier detection, and group-by summaries.
-2. Use ONLY pandas (and numpy where necessary). No matplotlib, seaborn, plotly, or any visualization libraries.
-3. Do NOT write actual code. Write clear, precise natural-language DESCRIPTIONS of each query.
-4. These query descriptions will be consumed by another LLM in the next step to write the actual pandas code — so be explicit and unambiguous. Each description must be self-contained and implementation-ready.
-5. Every description must specify: the operation type, the column(s) involved, and the expected output shape/format.
+## Your Goal
+Create a complete set of queries that progressively reveal patterns, anomalies, relationships, and insights in the data. Think like an analyst uncovering every dimension of the dataset.
 
-Output format:
+## Query Categories (Generate Queries Across ALL Categories)
+
+### 1. Basic Data Understanding (Simple Queries)
+- Row and column counts, data types, memory usage
+- First/last few rows to see data structure
+- Null value counts and percentages per column
+- Duplicate row analysis
+- Data type validation and conversions needed
+
+### 2. Univariate Analysis (Simple to Moderate)
+- Descriptive statistics: mean, median, std, min, max, quartiles
+- Distribution analysis: value_counts() for categorical columns, histogram-style analysis for numeric
+- Skewness and kurtosis for numeric columns
+- Top/bottom N values for each column
+- Cardinality analysis (unique value counts)
+
+### 3. Data Quality & Anomalies (Moderate)
+- Missing data patterns: which rows have the most nulls, which columns correlate with nulls
+- Outlier detection: IQR method, z-score analysis per numeric column
+- Inconsistent or unexpected values (e.g., negative ages, future dates)
+- String anomalies: extra whitespace, case inconsistencies, special characters
+- Duplicate detection: full row duplicates and key-based duplicates
+
+### 4. Relationships & Patterns (Moderate to Complex)
+- Correlation matrix: numeric-to-numeric relationships
+- Categorical associations: crosstabs between key columns
+- Group-by aggregations: summary stats grouped by categorical columns
+- Multi-level grouping: nested groupby with multiple aggregation functions
+- Time-series patterns: if date columns exist, trends over time periods
+
+### 5. Advanced Statistical Analysis (Complex)
+- Distribution testing: normality tests, distribution fitting
+- Segmentation analysis: identifying natural clusters or segments in the data
+- Pareto analysis: 80/20 rule (e.g., which 20% of customers drive 80% of revenue)
+- Dependency analysis: which columns predict or influence others
+- Comparative analysis: differences between groups or time periods
+
+### 6. Custom Insights (Complex)
+- Domain-specific queries based on the data's purpose (e.g., customer retention, product performance)
+- Derived metrics: ratios, percentages, growth rates
+- Threshold-based analysis: how many rows meet certain conditions
+- Ranking and sorting: top performers, worst performers, variability
+
+
+## Output Format
 {parser_for_pandas_query_generator.get_format_instructions()}
 """
 
 sys_prompt_for_graph_query_generator = f"""
-You are a senior data analyst and data visualization expert specializing in exploratory data analysis (EDA).
+You are a senior data visualization expert specializing in exploratory data analysis (EDA) and data storytelling.
 
-The user will provide a description of a CSV file. Your task is to generate descriptions of all charts and graphs required to produce a comprehensive, visually rich data analysis report.
+The user will provide a description of a CSV file. Your task is to generate descriptions of all charts, graphs, and animations needed to produce a comprehensive, visually rich, and interactive data analysis report that reveals trends, patterns, and insights beautifully.
 
-STRICT RULES:
-1. Generate ONLY visualization queries — distribution plots, correlation heatmaps, bar charts, line charts, scatter plots, box plots, pair plots, pie charts, time series plots, etc.
-2. Use ONLY plotly (plotly.express or plotly.graph_objects). Do NOT include any statistical computations or pandas aggregation logic.
-3. Do NOT write actual code. Write clear, precise natural-language DESCRIPTIONS of each chart.
-4. These chart descriptions will be consumed by another LLM in the next step to write the actual plotly code — so be explicit and unambiguous. Each description must be self-contained and implementation-ready.
-5. Every description must specify:
-   - Chart type and the preferred plotly module (px vs go) — e.g., "plotly.express scatter", "plotly.graph_objects Heatmap"
-   - Column(s) involved (x-axis, y-axis, color/grouping if any)
-   - The analytical insight this chart is meant to reveal
-   - Any grouping, filtering, or sorting that should be applied before plotting
+## Your Goal
+Create a complete set of visualizations that tell a story about the data—from static charts revealing distributions and relationships, to animated visualizations showing trends and changes over time or dimensions.
 
-Output format:
+## Visualization Categories (Generate Across ALL Categories)
+
+### 1. Static Distribution Visualizations (Simple to Moderate)
+- Histograms: distribution of numeric columns, with bin optimization
+- Box plots: distribution, outliers, and quartiles per numeric column
+- Violin plots: distribution shape with density estimation
+- Bar charts: frequency or count of categorical values, sorted by frequency
+- Pie charts: proportion/composition of categorical values (use sparingly, only for 2-5 categories)
+- KDE plots: smooth distribution visualization for numeric columns
+
+### 2. Relationship & Correlation Visualizations (Moderate)
+- Scatter plots: relationships between two numeric columns, with optional color/size encoding
+- Correlation heatmap: numeric-to-numeric relationships, with annotations
+- Bubble charts: three numeric variables (x, y, size) plus optional color grouping
+- Pair plots: multi-variable relationships (grid of scatter plots)
+- Categorical scatter: numeric vs categorical with jitter or strip plots
+- 2D density plots: bivariate distributions with heatmap/contour overlay
+
+### 3. Comparative Visualizations (Moderate)
+- Grouped bar charts: categorical comparison across groups
+- Stacked bar charts: composition breakdown by category
+- Side-by-side box plots: distribution comparison across groups
+- Grouped scatter plots: relationships split by categorical grouping
+- Sunburst charts: hierarchical categorical breakdowns (multi-level pie)
+- Waterfall charts: cumulative changes or contributions
+
+### 4. Time Series & Trend Visualizations (Moderate to Complex)
+- Line charts: trends over time with multiple series if applicable
+- Area charts: cumulative trends or stacked areas over time
+- Candlestick charts: OHLC data if available (e.g., stock prices)
+- Range plots: min/max bands over time periods
+- Slope charts: changes between two time points for multiple groups
+
+### 5. Miscellaneous charts
+- Any chart as per dataset
+
+
+
+## Output format:
 {parser_for_graph_query_generator.get_format_instructions()}
+
+## Note - 
+Return output strictly in given format do not add image name in query .
 """
 
 
@@ -153,61 +232,83 @@ def pandas_query_generator(state: schema_for_main_graph):
     res = model_for_query_generator.invoke(pr)
     res = parser_for_pandas_query_generator.invoke(res.content)
 
-    return {"pandas_queries": res}
+    return {"pandas_queries": res.queries_description}
 
-async def wrapper_for_schema_generator(state:schema_for_main_graph):
-    res=await schema_generator_workflow.ainvoke({'messages':[HumanMessage(content=f'File path = {state["file_path"]}')]})
+
+async def wrapper_for_schema_generator(state: schema_for_main_graph):
+    res = await schema_generator_workflow.ainvoke(
+        {"messages": [HumanMessage(content=f'File path = {state["file_path"]}')]}
+    )
     # print(res['csv_schema'])
-    return {'csv_schema':res['csv_schema']}
+    return {"csv_schema": res["csv_schema"]}
+
 
 async def wrapper_for_pandas_query_executor(inp):
-    query=inp['query']
-    csv_schema=inp['csv_schema']
+    query = inp["query"]
+    csv_schema = inp["csv_schema"]
 
-    messages=HumanMessage(content=f"csv_schema: {csv_schema} \n\n task:{query}")
-    
-    res=await workflow_for_pandas_query.ainvoke({'messages':[messages],'query':query})
-    return {'pandas_results':[res['formatted_result']]}
+    messages = HumanMessage(content=f"csv_schema: {csv_schema} \n\n task:{query}")
+
+    res = await workflow_for_pandas_query.ainvoke(
+        {"messages": [messages], "query": query}
+    )
+    return {"pandas_results": [res["formatted_result"]]}
 
 
-
-def fanout_for_pandas_query(state:schema_for_main_graph):
-    res=[]
-    for pd_q in state['pandas_queries']:
-        res.append(Send('wrapper_for_pandas_query_executor',{'csv_schema':state['csv_schema'],'query':pd_q}))
+def fanout_for_pandas_query(state: schema_for_main_graph):
+    res = []
+    for pd_q in state["pandas_queries"]:
+        res.append(
+            Send(
+                "wrapper_for_pandas_query_executor",
+                {"csv_schema": state["csv_schema"], "query": pd_q},
+            )
+        )
     return res
 
 
 async def wrapper_for_graph_query_executor(inp):
-    task=inp['task']
-    file_path=inp['file_path']
-    csv_schema=inp['csv_schema']
+    task = inp["task"]
+    file_path = inp["file_path"]
+    csv_schema = inp["csv_schema"]
 
-    messages=HumanMessage(content=f"""
+    messages = HumanMessage(content=f"""
         task-{task}
-        file_path-{f"./data/{file_path}"}
+        file_path-{f"{image_folder}/{file_path}"}
         csv_schema-{csv_schema}
 """)
-    
-    res=await workflow_for_graph_query.ainvoke({'messages':[messages]})
-    return 
+
+    res = await workflow_for_graph_query.ainvoke({"messages": [messages]})
+    return
 
 
-def fanout_for_graph_query(state:schema_for_main_graph):
-    res=[]
-    for pd_q in state['graph_queries'].queries_description:
-        res.append(Send('wrapper_for_graph_query_executor',{'csv_schema':state['csv_schema'],'task':pd_q.queries_description,'file_path':pd_q.image_name}))
+def fanout_for_graph_query(state: schema_for_main_graph):
+    res = []
+    for pd_q in state["graph_queries"].queries_description:
+        res.append(
+            Send(
+                "wrapper_for_graph_query_executor",
+                {
+                    "csv_schema": state["csv_schema"],
+                    "task": pd_q.queries_description,
+                    "file_path": pd_q.image_name,
+                },
+            )
+        )
     return res
 
 
-def dummy_collector(state:schema_for_main_graph):
+def dummy_collector(state: schema_for_main_graph):
     return
 
 
 class schema_for_markdown_generator(BaseModel):
-    markdown:str=Field(...,description="markdown file")
+    markdown: str = Field(..., description="markdown file")
 
-parser_for_markdown_generator=PydanticOutputParser(pydantic_object=schema_for_markdown_generator)
+
+parser_for_markdown_generator = PydanticOutputParser(
+    pydantic_object=schema_for_markdown_generator
+)
 
 sys_prompt_for_markdown_generator = f"""
 You are a Markdown report generator. The user will provide you with:
@@ -229,15 +330,23 @@ Output format-
 {parser_for_markdown_generator.get_format_instructions()}
 """
 
-def markdown_generator(state:schema_for_main_graph):
-    po=""
-    for i in state['pandas_results']:
-        po=po+f'query= {i.query}'+f"\n result= {i.result}\n\n"
-        
-    gq=""
-    for i in state['graph_queries'].queries_description:
-        gq=gq+'\n'+i.queries_description+'\n'+f'File path = ./data/{i.image_name}'+'\n'
-    pr=f"""
+
+def markdown_generator(state: schema_for_main_graph):
+    po = ""
+    for i in state["pandas_results"]:
+        po = po + f"query= {i.query}" + f"\n result= {i.result}\n\n"
+
+    gq = ""
+    for i in state["graph_queries"].queries_description:
+        gq = (
+            gq
+            + "\n"
+            + i.queries_description
+            + "\n"
+            + f"File path = {image_folder}/{i.image_name}"
+            + "\n"
+        )
+    pr = f"""
     Csv schema - 
     {state['csv_schema']}
 
@@ -252,48 +361,82 @@ def markdown_generator(state:schema_for_main_graph):
     """
 
     # print(pr)
-    pr=[SystemMessage(content=sys_prompt_for_markdown_generator),HumanMessage(content=pr)]
-    res=model_for_markdown_generator.invoke(pr)
-    res=parser_for_markdown_generator.invoke(res)
+    pr = [
+        SystemMessage(content=sys_prompt_for_markdown_generator),
+        HumanMessage(content=pr),
+    ]
+    res = model_for_markdown_generator.invoke(pr)
+    res = parser_for_markdown_generator.invoke(res)
 
-    
-    with open('markdown.md','w') as f:
+    with open(f"{image_folder}/markdown.md", "w") as f:
         f.write(res.markdown)
-        
-    return {'markdown':res.markdown}
+
+    return {"markdown": res.markdown}
 
 
-graph=StateGraph(schema_for_main_graph)
+graph = StateGraph(schema_for_main_graph)
 
-graph.add_node('wrapper_for_schema_generator',wrapper_for_schema_generator)
-graph.add_node('pandas_query_generator',pandas_query_generator)
-graph.add_node('graph_query_generator',graph_query_generator)
-graph.add_node('wrapper_for_pandas_query_executor',wrapper_for_pandas_query_executor)
-graph.add_node('wrapper_for_graph_query_executor',wrapper_for_graph_query_executor)
-graph.add_node('dummy_collector',dummy_collector)
-graph.add_node('markdown_generator',markdown_generator)
+graph.add_node("wrapper_for_schema_generator", wrapper_for_schema_generator)
+graph.add_node("pandas_query_generator", pandas_query_generator)
+graph.add_node("graph_query_generator", graph_query_generator)
+graph.add_node("wrapper_for_pandas_query_executor", wrapper_for_pandas_query_executor)
+graph.add_node("wrapper_for_graph_query_executor", wrapper_for_graph_query_executor)
+graph.add_node("dummy_collector", dummy_collector)
+graph.add_node("markdown_generator", markdown_generator)
 # graph.add_node('tools',ToolNode(tools=[run_pandas_queries,run_graph_queries]))
 
-graph.add_edge(START,'wrapper_for_schema_generator')
-graph.add_edge('wrapper_for_schema_generator','pandas_query_generator')
-graph.add_edge('wrapper_for_schema_generator','graph_query_generator')
+graph.add_edge(START, "wrapper_for_schema_generator")
+graph.add_edge("wrapper_for_schema_generator", "pandas_query_generator")
+graph.add_edge("wrapper_for_schema_generator", "graph_query_generator")
 
-graph.add_conditional_edges('pandas_query_generator',fanout_for_pandas_query,['wrapper_for_pandas_query_executor'])
-graph.add_conditional_edges('graph_query_generator',fanout_for_graph_query,['wrapper_for_graph_query_executor'])
+graph.add_conditional_edges(
+    "pandas_query_generator",
+    fanout_for_pandas_query,
+    ["wrapper_for_pandas_query_executor"],
+)
+graph.add_conditional_edges(
+    "graph_query_generator",
+    fanout_for_graph_query,
+    ["wrapper_for_graph_query_executor"],
+)
 
-graph.add_edge('wrapper_for_graph_query_executor','dummy_collector')
-graph.add_edge('wrapper_for_pandas_query_executor','dummy_collector')
-graph.add_edge('dummy_collector','markdown_generator')
-graph.add_edge('markdown_generator',END)
+graph.add_edge("wrapper_for_graph_query_executor", "dummy_collector")
+graph.add_edge("wrapper_for_pandas_query_executor", "dummy_collector")
+graph.add_edge("dummy_collector", "markdown_generator")
+graph.add_edge("markdown_generator", END)
 
-check_ptr=InMemorySaver()
-workflow=graph.compile(checkpointer=check_ptr)
+check_ptr = InMemorySaver()
+workflow = graph.compile(checkpointer=check_ptr)
+
 
 async def run_workflow():
-    config={'configurable': {'thread_id': '1'}}
-    r=await workflow.ainvoke({'file_path':'C:\\Users\\panka\\genai_project\\data_analysis_agent\\data\\Iris.csv'},config=config)
+    config = {"configurable": {"thread_id": "1"}}
+    try:
+        r = await workflow.ainvoke(
+            {
+                "file_path": "C:\\Users\\panka\\genai_project\\data_analysis_agent\\data\\Iris.csv"
+            },
+            config=config,
+        )
+    except Exception as E:
+        print(E)
+        r = await workflow.ainvoke(
+            None,
+            config=config)
+        
     return r
 
-if __name__=="__main__":
-    res=asyncio.run(run_workflow())
-    display(Markdown(res['markdown']))
+async def stream_workflow():
+    config = {"configurable": {"thread_id": "1"}}
+    inp={
+                "file_path": "C:\\Users\\panka\\genai_project\\data_analysis_agent\\data\\Iris.csv"
+            }
+    async for chunk in workflow.astream(inp,config=config,stream_mode=['updates']):
+        current_node=list(chunk[1].keys())[0]
+        print("running {current_node}")
+    
+
+
+if __name__ == "__main__":
+    # res = asyncio.run(run_workflow())
+    res = asyncio.run(stream_workflow())

@@ -10,6 +10,7 @@ mcp = FastMCP()
 def dummy_tool():
     return "sucess"
 
+
 @mcp.tool()
 def run_pandas_queries(
     queries: str = Field(
