@@ -23,8 +23,13 @@ import asyncio
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.types import Send
 from IPython.display import Markdown, display
-import sqlite3
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 from langgraph.checkpoint.memory import InMemorySaver
+import warnings
+from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
+import aiosqlite
+
+warnings.filterwarnings("ignore")
 
 
 load_dotenv()
@@ -60,9 +65,7 @@ os.environ["LANGSMITH_PROJECT"] = "data-analysis-agent-testing"
 model_for_markdown_generator = ChatNVIDIA(
     model="mistralai/mistral-small-4-119b-2603", max_completion_tokens=10000
 )
-model_for_query_generator = ChatNVIDIA(
-    model="mistralai/mistral-small-4-119b-2603", max_completion_tokens=10000
-)
+model_for_query_generator = ChatNVIDIA(model="mistralai/mistral-small-4-119b-2603", max_completion_tokens=10000)
 
 
 class schema_for_pandas_query_generator(BaseModel):
@@ -108,6 +111,7 @@ The user will provide a CSV file description and schema. Your task is to generat
 
 ## Your Goal
 Create a complete set of queries that progressively reveal patterns, anomalies, relationships, and insights in the data. Think like an analyst uncovering every dimension of the dataset.
+Generate 5-10 queries
 
 ## Query Categories (Generate Queries Across ALL Categories)
 
@@ -164,6 +168,7 @@ The user will provide a description of a CSV file. Your task is to generate desc
 
 ## Your Goal
 Create a complete set of visualizations that tell a story about the data—from static charts revealing distributions and relationships, to animated visualizations showing trends and changes over time or dimensions.
+Generate 5-10 queries.
 
 ## Visualization Categories (Generate Across ALL Categories)
 
@@ -246,8 +251,9 @@ async def wrapper_for_schema_generator(state: schema_for_main_graph):
 async def wrapper_for_pandas_query_executor(inp):
     query = inp["query"]
     csv_schema = inp["csv_schema"]
+    csv_file_path = inp["csv_file_path"]
 
-    messages = HumanMessage(content=f"csv_schema: {csv_schema} \n\n task:{query}")
+    messages = HumanMessage(content=f"csv_schema: {csv_schema} \n\n task:{query} \n\n csv_file_path - {csv_file_path}")
 
     res = await workflow_for_pandas_query.ainvoke(
         {"messages": [messages], "query": query}
@@ -261,7 +267,7 @@ def fanout_for_pandas_query(state: schema_for_main_graph):
         res.append(
             Send(
                 "wrapper_for_pandas_query_executor",
-                {"csv_schema": state["csv_schema"], "query": pd_q},
+                {"csv_schema": state["csv_schema"], "query": pd_q,'csv_file_path':state['file_path']},
             )
         )
     return res
@@ -269,13 +275,15 @@ def fanout_for_pandas_query(state: schema_for_main_graph):
 
 async def wrapper_for_graph_query_executor(inp):
     task = inp["task"]
-    file_path = inp["file_path"]
+    image_name = inp["image_name"]
+    csv_file_path = inp["csv_file_path"]
     csv_schema = inp["csv_schema"]
 
     messages = HumanMessage(content=f"""
         task-{task}
-        file_path-{f"{image_folder}/{file_path}"}
+        file_path-{f"{image_folder}/{image_name}"}
         csv_schema-{csv_schema}
+        csv_file_path-{csv_file_path}
 """)
 
     res = await workflow_for_graph_query.ainvoke({"messages": [messages]})
@@ -291,7 +299,8 @@ def fanout_for_graph_query(state: schema_for_main_graph):
                 {
                     "csv_schema": state["csv_schema"],
                     "task": pd_q.queries_description,
-                    "file_path": pd_q.image_name,
+                    "image_name": pd_q.image_name,
+                    "csv_file_path": state['file_path'],
                 },
             )
         )
@@ -394,6 +403,8 @@ graph.add_conditional_edges(
     fanout_for_pandas_query,
     ["wrapper_for_pandas_query_executor"],
 )
+graph.add_edge("wrapper_for_pandas_query_executor", "dummy_collector")
+
 graph.add_conditional_edges(
     "graph_query_generator",
     fanout_for_graph_query,
@@ -401,16 +412,28 @@ graph.add_conditional_edges(
 )
 
 graph.add_edge("wrapper_for_graph_query_executor", "dummy_collector")
-graph.add_edge("wrapper_for_pandas_query_executor", "dummy_collector")
 graph.add_edge("dummy_collector", "markdown_generator")
 graph.add_edge("markdown_generator", END)
 
-check_ptr = InMemorySaver()
-workflow = graph.compile(checkpointer=check_ptr)
+
+workflow = None
+conn = None
+
+
+async def d():
+    global workflow, conn
+    conn = await aiosqlite.connect("checkpoints.db")
+    checkpointer = AsyncSqliteSaver(conn)
+    await checkpointer.setup()
+    workflow = graph.compile(checkpointer=checkpointer)
+    
+
+
+asyncio.run(d())
 
 
 async def run_workflow():
-    config = {"configurable": {"thread_id": "1"}}
+    config = {"configurable": {"thread_id": "3"}}
     try:
         r = await workflow.ainvoke(
             {
@@ -420,21 +443,28 @@ async def run_workflow():
         )
     except Exception as E:
         print(E)
-        r = await workflow.ainvoke(
-            None,
-            config=config)
-        
+        r = await workflow.ainvoke(None, config=config)
+
     return r
 
+
 async def stream_workflow():
-    config = {"configurable": {"thread_id": "1"}}
-    inp={
-                "file_path": "C:\\Users\\panka\\genai_project\\data_analysis_agent\\data\\Iris.csv"
-            }
-    async for chunk in workflow.astream(inp,config=config,stream_mode=['updates']):
-        current_node=list(chunk[1].keys())[0]
-        print("running {current_node}")
-    
+    try:
+        config = {"configurable": {"thread_id": "5"}}
+        inp = {
+            "file_path": "C:\\Users\\panka\\genai_project\\data_analysis_agent\\data\\Iris.csv"
+        }
+        async for chunk in workflow.astream(inp,config=config,stream_mode=['updates']):
+        # async for chunk in workflow.astream(
+        #     None, config=config, stream_mode=["updates"]
+        # ):
+            a, b = chunk
+            if a == "updates":
+                print(f"{list(b.keys())[0]} node is competed")
+    except Exception as E:
+        print(E)
+    finally:
+        await conn.close()
 
 
 if __name__ == "__main__":

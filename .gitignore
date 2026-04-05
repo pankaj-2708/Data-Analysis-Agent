@@ -1,3 +1,7 @@
 /daa
 /data
 .env
+checkpoints.db
+checkpoints.db-shm
+checkpoints.db-wal
+test.py

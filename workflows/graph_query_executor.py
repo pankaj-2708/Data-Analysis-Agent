@@ -12,7 +12,9 @@ from langgraph.prebuilt import ToolNode, tools_condition
 from langgraph.graph.message import add_messages
 import asyncio
 from langchain_mcp_adapters.client import MultiServerMCPClient
+import warnings
 
+warnings.filterwarnings("ignore")
 load_dotenv()
 
 
@@ -49,12 +51,13 @@ class schema_for_graph_query_executor(TypedDict):
 
 
 sys_prompt_for_graph_query_executor = """
-You are a data analyst. The user will provide you a task, a CSV schema, and a file path.
+You are a data analyst. The user will provide you a task, a CSV schema, csv file path and a image file path .
 
-Your task is to write a multiline Plotly query to:
-- Generate a chart, graph, or animation for the given task
-- Save the figure using fig.write_image() at EXACTLY the provided file path — do not modify, append, or substitute any part of it
-- Use the given tools to execute the query
+Your task is to write a multiline query for Matplotib to:
+- Generate a chart, graph for the given task
+- Use csv file path for reading csv
+- Save the figure  at EXACTLY the provided image file path — do not modify, append, or substitute any part of it
+- Use the given tools to execute the query.
 
 Note-
 Use full file path for saving the image and for loading the csv file.

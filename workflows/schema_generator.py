@@ -20,7 +20,9 @@ from langgraph.graph.message import add_messages
 from langgraph.checkpoint.memory import InMemorySaver
 import asyncio
 from langchain_mcp_adapters.client import MultiServerMCPClient
+import warnings
 
+warnings.filterwarnings("ignore")
 load_dotenv()
 
 
@@ -48,11 +50,11 @@ tools = [i for i in tools if i.name == "run_pandas_queries"]
 
 
 model_for_schema_generator = ChatNVIDIA(
-    model="mistralai/mistral-small-4-119b-2603", max_completion_tokens=10000
+    model="mistralai/devstral-2-123b-instruct-2512", max_completion_tokens=10000
 ).bind_tools(tools)
 
 model_for_schema_formatter = ChatNVIDIA(
-    model="mistralai/mistral-small-4-119b-2603", max_completion_tokens=10000
+    model="mistralai/devstral-2-123b-instruct-2512", max_completion_tokens=10000
 )
 
 
@@ -65,9 +67,6 @@ class schema_for_schema_formatter(BaseModel):
     schema_: str
 
 
-class schema_for_schema_formatter(BaseModel):
-    schema_: str
-
 
 parser_for_schema_formatter = PydanticOutputParser(
     pydantic_object=schema_for_schema_formatter
@@ -79,39 +78,10 @@ You are a data schema generator. Your job is to analyze CSV files and produce cl
 ## Your Task
 Explore the CSV file thoroughly using `run_pandas_queries` tool and generate a natural-language schema document. Never guess—derive everything from actual data inspection.
 
-## Schema Structure (Natural Language Format)
-
-**File Overview**
-Start with a brief paragraph describing what the file contains, its size (total rows and columns), and any notable data quality issues (duplicates, missing values).
-
-**Column Breakdown**
-For each column, write a short, clear paragraph covering:
-- Column name and data type
-- What it represents (e.g., customer ID, transaction date, product category)
-- Sample values (3-5 examples)
-- Data completeness (X% non-null, Y missing values)
-- Value distribution (Z unique values, or top 5 categories for text)
-- Value range (min/max for numbers) or common patterns
-- Any data quality notes (inconsistencies, unexpected formats, outliers)
-
-## Example Format (NOT JSON)
-```
-**File Overview**
-This dataset contains 10,000 customer transactions with 8 columns. Most columns are complete, but the 'discount_applied' column has 15% missing values.
-
-**Column: transaction_id**
-Integer identifier for each transaction. Data type: int64. All 10,000 values are unique and non-null. Range: 1 to 10,000. Samples: 542, 8901, 3421.
-
-**Column: customer_email**
-String containing customer email addresses. Data type: object. 9,850 non-null values (1.5% missing). 8,500 unique emails. Some emails appear multiple times (repeat customers). Format is standard email (name@domain). Samples: john.doe@gmail.com, sarah.smith@company.org.
-
-...
-```
 
 ## Execution Rules
 - Use `run_pandas_queries` as many times as needed to fully understand each column
-- Extract actual statistics: describe(), value_counts(), isnull().sum(), dtypes, head(), info()
-- Write naturally—no bullet points, no structured fields, no JSON
+- Extract actual statistics: describe(), value_counts(), isnull().sum(), dtypes, head(), info() etc
 - Be concise but specific enough that a colleague could query the file without seeing it
 - If the file cannot be read, explain the error and stop
 - Return only the schema document—no preamble or additional commentary

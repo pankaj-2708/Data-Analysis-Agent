@@ -15,7 +15,9 @@ from langgraph.prebuilt import ToolNode
 from langgraph.graph.message import add_messages
 import asyncio
 from langchain_mcp_adapters.client import MultiServerMCPClient
+import warnings
 
+warnings.filterwarnings("ignore")
 load_dotenv()
 
 
