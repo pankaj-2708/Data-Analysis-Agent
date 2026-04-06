@@ -122,16 +122,16 @@ def pandas_query_formator(state: schema_for_pandas_query_executor):
 
 def tool_call_condition(
     state: schema_for_pandas_query_executor,
-) -> Literal["tools", "schema_formatter"]:
+) -> Literal["tools", "pandas_query_formator"]:
     if state["messages"][-1].tool_calls:
         return "tools"
-    return "schema_formatter"
+    return "pandas_query_formator"
 
 
 graph = StateGraph(schema_for_pandas_query_executor)
 
 graph.add_node("chat_node", chat_node_for_pandas_query_executor)
-graph.add_node("schema_formatter", pandas_query_formator)
+graph.add_node("pandas_query_formator", pandas_query_formator)
 graph.add_node("tools", ToolNode(tools))
 
 graph.add_edge(START, "chat_node")

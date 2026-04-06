@@ -11,20 +11,18 @@ from langgraph.graph.message import add_messages
 from pydantic import Field, BaseModel
 from typing import List
 from dotenv import load_dotenv
-from graph_query_executor import workflow_for_graph_query
-from pandas_query_executor import (
+from workflows.graph_query_executor import workflow_for_graph_query
+from workflows.pandas_query_executor import (
     workflow_for_pandas_query,
     schema_for_pandas_query_formatter,
 )
-from schema_generator import schema_generator_workflow
+from workflows.schema_generator import schema_generator_workflow
 import os
 import operator
 import asyncio
 from langchain_mcp_adapters.client import MultiServerMCPClient
 from langgraph.types import Send
-from IPython.display import Markdown, display
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
-from langgraph.checkpoint.memory import InMemorySaver
 import warnings
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 import aiosqlite
@@ -35,7 +33,7 @@ warnings.filterwarnings("ignore")
 load_dotenv()
 
 image_folder = "C:/Users/panka/genai_project/data_analysis_agent/data"
-
+batch_size=5
 
 async def load_tools():
     servers = {
@@ -111,7 +109,6 @@ The user will provide a CSV file description and schema. Your task is to generat
 
 ## Your Goal
 Create a complete set of queries that progressively reveal patterns, anomalies, relationships, and insights in the data. Think like an analyst uncovering every dimension of the dataset.
-Generate 5-10 queries
 
 ## Query Categories (Generate Queries Across ALL Categories)
 
@@ -168,7 +165,7 @@ The user will provide a description of a CSV file. Your task is to generate desc
 
 ## Your Goal
 Create a complete set of visualizations that tell a story about the data—from static charts revealing distributions and relationships, to animated visualizations showing trends and changes over time or dimensions.
-Generate 5-10 queries.
+
 
 ## Visualization Categories (Generate Across ALL Categories)
 
@@ -249,57 +246,72 @@ async def wrapper_for_schema_generator(state: schema_for_main_graph):
 
 
 async def wrapper_for_pandas_query_executor(inp):
-    query = inp["query"]
+    querys = inp["querys"]
     csv_schema = inp["csv_schema"]
     csv_file_path = inp["csv_file_path"]
+    
+    res_g=[]
+    for query in querys:
 
-    messages = HumanMessage(content=f"csv_schema: {csv_schema} \n\n task:{query} \n\n csv_file_path - {csv_file_path}")
+        messages = HumanMessage(content=f"csv_schema: {csv_schema} \n\n task:{query} \n\n csv_file_path - {csv_file_path}")
 
-    res = await workflow_for_pandas_query.ainvoke(
-        {"messages": [messages], "query": query}
-    )
-    return {"pandas_results": [res["formatted_result"]]}
+        res = await workflow_for_pandas_query.ainvoke(
+            {"messages": [messages], "query": query}
+        )
+        res_g.append(res["formatted_result"])
+    
+    return {"pandas_results": res_g}
 
 
 def fanout_for_pandas_query(state: schema_for_main_graph):
     res = []
-    for pd_q in state["pandas_queries"]:
+    x=state["pandas_queries"]
+    n_batch=(len(x)+batch_size-1)//batch_size
+    batches=[x[i*batch_size :(i+1)*batch_size] for i in range(n_batch)]
+    
+    for pd_qs in batches:
         res.append(
             Send(
                 "wrapper_for_pandas_query_executor",
-                {"csv_schema": state["csv_schema"], "query": pd_q,'csv_file_path':state['file_path']},
+                {"csv_schema": state["csv_schema"], "querys": pd_qs,'csv_file_path':state['file_path']},
             )
         )
     return res
 
 
 async def wrapper_for_graph_query_executor(inp):
-    task = inp["task"]
-    image_name = inp["image_name"]
+    tasks = inp["tasks"]
+    image_names = inp["image_names"]
     csv_file_path = inp["csv_file_path"]
     csv_schema = inp["csv_schema"]
 
-    messages = HumanMessage(content=f"""
-        task-{task}
-        file_path-{f"{image_folder}/{image_name}"}
-        csv_schema-{csv_schema}
-        csv_file_path-{csv_file_path}
-""")
+    for task,image_name in zip(tasks,image_names):
+        messages = HumanMessage(content=f"""
+            task-{task}
+            file_path-{f"{image_folder}/{image_name}"}
+            csv_schema-{csv_schema}
+            csv_file_path-{csv_file_path}
+    """)
 
-    res = await workflow_for_graph_query.ainvoke({"messages": [messages]})
-    return
+        res = await workflow_for_graph_query.ainvoke({"messages": [messages]})
+    
+    return 
 
 
 def fanout_for_graph_query(state: schema_for_main_graph):
     res = []
-    for pd_q in state["graph_queries"].queries_description:
+    x=state["graph_queries"].queries_description
+    n_batch=(len(x)+batch_size-1)//batch_size
+    batches=[x[i*batch_size :(i+1)*batch_size] for i in range(n_batch)]
+    
+    for pd_qs in batches:
         res.append(
             Send(
                 "wrapper_for_graph_query_executor",
                 {
                     "csv_schema": state["csv_schema"],
-                    "task": pd_q.queries_description,
-                    "image_name": pd_q.image_name,
+                    "tasks": [pd_q.queries_description for pd_q in pd_qs],
+                    "image_names": [pd_q.image_name for pd_q in pd_qs],
                     "csv_file_path": state['file_path'],
                 },
             )
@@ -403,7 +415,7 @@ graph.add_conditional_edges(
     fanout_for_pandas_query,
     ["wrapper_for_pandas_query_executor"],
 )
-graph.add_edge("wrapper_for_pandas_query_executor", "dummy_collector")
+graph.add_edge("wrapper_for_pandas_query_executor", "markdown_generator")
 
 graph.add_conditional_edges(
     "graph_query_generator",
@@ -411,8 +423,7 @@ graph.add_conditional_edges(
     ["wrapper_for_graph_query_executor"],
 )
 
-graph.add_edge("wrapper_for_graph_query_executor", "dummy_collector")
-graph.add_edge("dummy_collector", "markdown_generator")
+graph.add_edge("wrapper_for_graph_query_executor", "markdown_generator")
 graph.add_edge("markdown_generator", END)
 
 
