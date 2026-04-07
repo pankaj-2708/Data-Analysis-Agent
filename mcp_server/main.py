@@ -30,23 +30,6 @@ async def run_pandas_queries(
     the values of specified intermediate variables.
 
     This tool uses exec function of python so write your queries compaitable with it.
-
-    This tool is designed for stepwise data exploration — you can chain multiple
-    pandas operations across lines and selectively retrieve any named variable
-    from the execution scope.
-
-    Args:
-        queries (str): A newline-separated string of valid Python/pandas statements.
-                       Variables assigned in earlier lines are accessible in later lines.
-
-        variables_to_return (List[str]): Names of variables from the query scope to
-                                         include in the response. Any name not found
-                                         in scope will be returned as None.
-
-    Returns:
-        dict: On success — {"status": "success", "<var1>": <value>, "<var2>": <value>, ...}
-              On failure — {"status": "failed", "error": "<error message>"}
-
     Eg:
         Input:
             queries = \"\"\"
@@ -89,20 +72,6 @@ async def run_graph_queries(
 ):
     """
 Executes a multi-line Matplotlib script using exec() and saves the chart as PNG.
-
-    Rules:
-        - Use plt.style.use('seaborn-v0_8-whitegrid') for clean background
-        - Set figure size: plt.figure(figsize=(10, 6))
-        - Add title, xlabel, ylabel with fontsize=13+
-        - Save with: plt.savefig('<path>.png', dpi=150, bbox_inches='tight')
-        - Always end with plt.close()
-
-    Args:
-        queries (str): Newline-separated Matplotlib/pandas statements.
-                       Must save the figure using plt.savefig('<path>.png').
-
-    Returns:
-        {"status": "success"} or {"status": "failed", "error": "<message>"}
 
     Example:
         queries = \"\"\"

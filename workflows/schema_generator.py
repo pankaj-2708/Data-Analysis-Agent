@@ -21,6 +21,7 @@ from langgraph.checkpoint.memory import InMemorySaver
 import asyncio
 from langchain_mcp_adapters.client import MultiServerMCPClient
 import warnings
+from langchain_ollama import ChatOllama
 
 warnings.filterwarnings("ignore")
 load_dotenv()
@@ -49,13 +50,9 @@ tools = asyncio.run(load_tools())
 tools = [i for i in tools if i.name == "run_pandas_queries"]
 
 
-model_for_schema_generator = ChatNVIDIA(
-    model="mistralai/devstral-2-123b-instruct-2512", max_completion_tokens=10000
-).bind_tools(tools)
+model_for_schema_generator = model = ChatOllama(model="qwen2.5-coder:3b").bind_tools(tools)
 
-model_for_schema_formatter = ChatNVIDIA(
-    model="mistralai/devstral-2-123b-instruct-2512", max_completion_tokens=10000
-)
+model_for_schema_formatter = model = ChatOllama(model="qwen2.5-coder:3b")
 
 
 class schema_for_subgraph_schema_generator(TypedDict):

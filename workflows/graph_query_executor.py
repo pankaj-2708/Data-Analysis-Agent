@@ -16,6 +16,7 @@ import warnings
 
 warnings.filterwarnings("ignore")
 load_dotenv()
+from langchain_ollama import ChatOllama
 
 
 async def load_tools():
@@ -41,9 +42,7 @@ tools = asyncio.run(load_tools())
 tools = [i for i in tools if i.name == "run_graph_queries"]
 
 
-model_for_graph_query_executor = ChatNVIDIA(
-    model="mistralai/mistral-small-4-119b-2603", max_completion_tokens=10000
-).bind_tools(tools)
+model_for_graph_query_executor = model = ChatOllama(model="qwen2.5-coder:3b").bind_tools(tools)
 
 
 class schema_for_graph_query_executor(TypedDict):

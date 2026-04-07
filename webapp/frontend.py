@@ -1,16 +1,16 @@
+import nest_asyncio
+nest_asyncio.apply()
 import streamlit as st
 import asyncio
 import uuid
 import sys
 import os
 import time
-import nest_asyncio
 
 
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from workflows.main import workflow
 
-nest_asyncio.apply()
 
 st.set_page_config(page_title="Data Analysis Agent", layout="wide")
 
@@ -114,6 +114,7 @@ for key, default in {
     "running": False,
     "status": "idle",
     "start_time": None,
+    "thread_id": None,       # persisted so rerun can reuse it
 }.items():
     if key not in st.session_state:
         st.session_state[key] = default
@@ -126,9 +127,18 @@ def _fmt_elapsed(seconds: float) -> str:
     return f"{m:02d}:{s:02d}.{ms}"
 
 
-async def run_workflow(file_path, log_placeholder, timer_placeholder, badge_placeholder):
-    input_for_workflow = {"file_path": file_path}
-    config = {"configurable": {"thread_id": uuid.uuid4()}}
+async def run_workflow(file_path, log_placeholder, timer_placeholder, badge_placeholder, rerun=False):
+    # On first run generate a new thread_id and store it; on rerun keep existing one
+    if rerun and st.session_state.thread_id is not None:
+        thread_id = st.session_state.thread_id
+        st.write("Thread id - ",thread_id)
+        input_for_workflow = None                        # <-- rerun uses None
+    else:
+        thread_id = uuid.uuid4()
+        st.session_state.thread_id = thread_id          # persist for future reruns
+        input_for_workflow = {"file_path": file_path}
+
+    config = {"configurable": {"thread_id": thread_id}} # always reuse same id on rerun
 
     st.session_state.start_time = time.time()
     st.session_state.running = True
@@ -215,10 +225,20 @@ with left_col:
 
     if file:
         st.success(f"**{file.name}** ready")
-        run_btn = st.button("Run Analysis Agent", type="primary", use_container_width=True)
+        btn_col1, btn_col2 = st.columns([1, 1], gap="small")
+        with btn_col1:
+            run_btn = st.button("Run Analysis Agent", type="primary", use_container_width=True)
+        with btn_col2:
+            # Rerun only makes sense after at least one completed/errored run
+            rerun_btn = st.button(
+                "↺ Rerun",
+                use_container_width=True,
+                disabled=st.session_state.thread_id is None,
+            )
     else:
         st.info("Upload a CSV file to begin.")
         run_btn = False
+        rerun_btn = False
 
 with right_col:
     st.markdown("#### Workflow status")
@@ -276,20 +296,30 @@ with right_col:
             unsafe_allow_html=True,
         )
 
+
+
 # ── Trigger ──────────────────────────────────────────────────────────────────
-if run_btn and file:
+if (run_btn or rerun_btn) and file:
     file_path = os.path.join(FOLDER, file.name)
     loop = asyncio.get_event_loop()
+
+    # Save the uploaded file to disk (needed for both run and rerun)
     with open(file_path, "wb") as f:
         f.write(file.getbuffer())
 
     loop.run_until_complete(
-        run_workflow(file_path, log_placeholder, timer_placeholder, badge_placeholder)
+        run_workflow(
+            file_path,
+            log_placeholder,
+            timer_placeholder,
+            badge_placeholder,
+            rerun=bool(rerun_btn),   # flag tells the coroutine which mode
+        )
     )
-    
+
     st.markdown("<h1 style='text-align:center; margin-bottom:0;'>Analysis Report</h1>", unsafe_allow_html=True)
-    
-    with open(FOLDER+"\\"+"markdown.md",'r') as f:
-        md=f.read()
-        
+
+    with open(FOLDER + "\\" + "markdown.md", 'r') as f:
+        md = f.read()
+
     st.markdown(md)

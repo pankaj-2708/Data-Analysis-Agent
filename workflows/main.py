@@ -1,3 +1,8 @@
+import os
+import sys
+sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
+
+
 from typing import TypedDict, Annotated
 from langchain_core.messages import (
     SystemMessage,
@@ -26,6 +31,7 @@ from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 import warnings
 from langgraph.checkpoint.sqlite.aio import AsyncSqliteSaver
 import aiosqlite
+from langchain_ollama import ChatOllama
 
 warnings.filterwarnings("ignore")
 
@@ -33,7 +39,7 @@ warnings.filterwarnings("ignore")
 load_dotenv()
 
 image_folder = "C:/Users/panka/genai_project/data_analysis_agent/data"
-batch_size=5
+batch_size=7
 
 async def load_tools():
     servers = {
@@ -60,10 +66,8 @@ tools = asyncio.run(load_tools())
 load_dotenv()
 os.environ["LANGSMITH_PROJECT"] = "data-analysis-agent-testing"
 
-model_for_markdown_generator = ChatNVIDIA(
-    model="mistralai/mistral-small-4-119b-2603", max_completion_tokens=10000
-)
-model_for_query_generator = ChatNVIDIA(model="mistralai/mistral-small-4-119b-2603", max_completion_tokens=10000)
+model_for_markdown_generator = model = ChatOllama(model="qwen2.5-coder:3b")
+model_for_query_generator = model = ChatOllama(model="qwen2.5-coder:3b")
 
 
 class schema_for_pandas_query_generator(BaseModel):
@@ -444,11 +448,11 @@ asyncio.run(d())
 
 
 async def run_workflow():
-    config = {"configurable": {"thread_id": "3"}}
+    config = {"configurable": {"thread_id": "11"}}
     try:
         r = await workflow.ainvoke(
             {
-                "file_path": "C:\\Users\\panka\\genai_project\\data_analysis_agent\\data\\Iris.csv"
+                "file_path": "C:\\Users\\panka\\genai_project\\data_analysis_agent\\data\\transactions_export_2026-03-15_upi.csv"
             },
             config=config,
         )
@@ -461,9 +465,9 @@ async def run_workflow():
 
 async def stream_workflow():
     try:
-        config = {"configurable": {"thread_id": "5"}}
+        config = {"configurable": {"thread_id": "2"}}
         inp = {
-            "file_path": "C:\\Users\\panka\\genai_project\\data_analysis_agent\\data\\Iris.csv"
+            "file_path": "C:\\Users\\panka\\genai_project\\data_analysis_agent\\data\\transactions.csv"
         }
         async for chunk in workflow.astream(inp,config=config,stream_mode=['updates']):
         # async for chunk in workflow.astream(
