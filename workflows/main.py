@@ -23,6 +23,7 @@ from workflows.pandas_query_executor import (
 )
 from workflows.schema_generator import schema_generator_workflow
 import os
+from langchain_google_genai import ChatGoogleGenerativeAI
 import operator
 import asyncio
 from langchain_mcp_adapters.client import MultiServerMCPClient
@@ -39,7 +40,8 @@ warnings.filterwarnings("ignore")
 load_dotenv()
 
 image_folder = "C:/Users/panka/genai_project/data_analysis_agent/data"
-batch_size=7
+graph_batch_size=10
+pandas_batch_size=10
 
 async def load_tools():
     servers = {
@@ -66,8 +68,8 @@ tools = asyncio.run(load_tools())
 load_dotenv()
 os.environ["LANGSMITH_PROJECT"] = "data-analysis-agent-testing"
 
-model_for_markdown_generator = model = ChatOllama(model="qwen2.5-coder:3b")
-model_for_query_generator = model = ChatOllama(model="qwen2.5-coder:3b")
+model_for_markdown_generator  =ChatOllama(model="gemma4:31b-cloud")
+model_for_query_generator  =ChatOllama(model="gemma4:31b-cloud")
 
 
 class schema_for_pandas_query_generator(BaseModel):
@@ -158,6 +160,8 @@ Create a complete set of queries that progressively reveal patterns, anomalies, 
 - Ranking and sorting: top performers, worst performers, variability
 
 
+Generate as many pandas queries as required to generate a  detailed overiview for the data.
+
 ## Output Format
 {parser_for_pandas_query_generator.get_format_instructions()}
 """
@@ -208,6 +212,7 @@ Create a complete set of visualizations that tell a story about the data—from 
 - Any chart as per dataset
 
 
+Generate as many graph queries as required to generate a  detailed overiview for the data.
 
 ## Output format:
 {parser_for_graph_query_generator.get_format_instructions()}
@@ -270,8 +275,8 @@ async def wrapper_for_pandas_query_executor(inp):
 def fanout_for_pandas_query(state: schema_for_main_graph):
     res = []
     x=state["pandas_queries"]
-    n_batch=(len(x)+batch_size-1)//batch_size
-    batches=[x[i*batch_size :(i+1)*batch_size] for i in range(n_batch)]
+    n_batch=(len(x)+pandas_batch_size-1)//pandas_batch_size
+    batches=[x[i*pandas_batch_size :(i+1)*pandas_batch_size] for i in range(n_batch)]
     
     for pd_qs in batches:
         res.append(
@@ -297,7 +302,7 @@ async def wrapper_for_graph_query_executor(inp):
             csv_file_path-{csv_file_path}
     """)
 
-        res = await workflow_for_graph_query.ainvoke({"messages": [messages]})
+        res = await workflow_for_graph_query.ainvoke({"messages": [messages],"run_count":0})
     
     return 
 
@@ -305,8 +310,8 @@ async def wrapper_for_graph_query_executor(inp):
 def fanout_for_graph_query(state: schema_for_main_graph):
     res = []
     x=state["graph_queries"].queries_description
-    n_batch=(len(x)+batch_size-1)//batch_size
-    batches=[x[i*batch_size :(i+1)*batch_size] for i in range(n_batch)]
+    n_batch=(len(x)+graph_batch_size-1)//graph_batch_size
+    batches=[x[i*graph_batch_size :(i+1)*graph_batch_size] for i in range(n_batch)]
     
     for pd_qs in batches:
         res.append(
@@ -350,6 +355,7 @@ Follow these guidelines when generating the report:
 - Embed saved chart images using the exact provided file paths — do not alter or substitute any part of the path
 - Add concise, meaningful commentary under each section to interpret the data and charts
 - Use headers, dividers, and formatting to ensure the report is easy to read and visually polished
+- Use all of generated plots in the markdowm.
 
 Output format- 
 {parser_for_markdown_generator.get_format_instructions()}
@@ -363,14 +369,15 @@ def markdown_generator(state: schema_for_main_graph):
 
     gq = ""
     for i in state["graph_queries"].queries_description:
-        gq = (
-            gq
-            + "\n"
-            + i.queries_description
-            + "\n"
-            + f"File path = {image_folder}/{i.image_name}"
-            + "\n"
-        )
+        if os.path.exists(f"{image_folder}/{i.image_name}"):
+            gq = (
+                gq
+                + "\n"
+                + i.queries_description
+                + "\n"
+                + f"File path = {image_folder}/{i.image_name}"
+                + "\n"
+            )
     pr = f"""
     Csv schema - 
     {state['csv_schema']}
@@ -378,9 +385,7 @@ def markdown_generator(state: schema_for_main_graph):
 
 
     Pandas queries and output - 
-    {po}
-
-    
+    {po} \n\n\n
     graph queries and output - 
     {gq}
     """
@@ -393,7 +398,7 @@ def markdown_generator(state: schema_for_main_graph):
     res = model_for_markdown_generator.invoke(pr)
     res = parser_for_markdown_generator.invoke(res)
 
-    with open(f"{image_folder}/markdown.md", "w") as f:
+    with open(f"{image_folder}/markdown.md", "w",encoding='utf-8') as f:
         f.write(res.markdown)
 
     return {"markdown": res.markdown}
@@ -448,7 +453,7 @@ asyncio.run(d())
 
 
 async def run_workflow():
-    config = {"configurable": {"thread_id": "11"}}
+    config = {"configurable": {"thread_id": "1"}}
     try:
         r = await workflow.ainvoke(
             {
@@ -465,7 +470,7 @@ async def run_workflow():
 
 async def stream_workflow():
     try:
-        config = {"configurable": {"thread_id": "2"}}
+        config = {"configurable": {"thread_id": "6"}}
         inp = {
             "file_path": "C:\\Users\\panka\\genai_project\\data_analysis_agent\\data\\transactions.csv"
         }

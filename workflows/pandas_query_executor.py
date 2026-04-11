@@ -17,7 +17,7 @@ import asyncio
 from langchain_mcp_adapters.client import MultiServerMCPClient
 import warnings
 from langchain_ollama import ChatOllama
-
+from langchain_google_genai import ChatGoogleGenerativeAI
 warnings.filterwarnings("ignore")
 load_dotenv()
 
@@ -44,7 +44,7 @@ async def load_tools():
 tools = asyncio.run(load_tools())
 tools = [i for i in tools if i.name == "run_pandas_queries"]
 
-model_for_query_executor = model = ChatOllama(model="qwen2.5-coder:3b").bind_tools(tools)
+model_for_query_executor  =ChatOllama(model="gemma4:31b-cloud").bind_tools(tools)
 
 
 class schema_for_pandas_query_formatter(BaseModel):

@@ -22,7 +22,7 @@ import asyncio
 from langchain_mcp_adapters.client import MultiServerMCPClient
 import warnings
 from langchain_ollama import ChatOllama
-
+from langchain_google_genai import ChatGoogleGenerativeAI
 warnings.filterwarnings("ignore")
 load_dotenv()
 
@@ -50,9 +50,9 @@ tools = asyncio.run(load_tools())
 tools = [i for i in tools if i.name == "run_pandas_queries"]
 
 
-model_for_schema_generator = model = ChatOllama(model="qwen2.5-coder:3b").bind_tools(tools)
+model_for_schema_generator = ChatOllama(model="gemma4:31b-cloud").bind_tools(tools)
 
-model_for_schema_formatter = model = ChatOllama(model="qwen2.5-coder:3b")
+model_for_schema_formatter = ChatOllama(model="gemma4:31b-cloud").bind_tools(tools)
 
 
 class schema_for_subgraph_schema_generator(TypedDict):
@@ -79,7 +79,7 @@ Explore the CSV file thoroughly using `run_pandas_queries` tool and generate a n
 ## Execution Rules
 - Use `run_pandas_queries` as many times as needed to fully understand each column
 - Extract actual statistics: describe(), value_counts(), isnull().sum(), dtypes, head(), info() etc
-- Be concise but specific enough that a colleague could query the file without seeing it
+- Be concise but specific enough that a colleague LLm can see the file without seeing it
 - If the file cannot be read, explain the error and stop
 - Return only the schema document—no preamble or additional commentary
 """

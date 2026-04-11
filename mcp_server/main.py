@@ -7,7 +7,7 @@ import asyncio
 
 mcp = FastMCP()
 
-timeout=10
+timeout=60
 
 @mcp.tool()
 def dummy_tool():
@@ -59,6 +59,9 @@ async def run_pandas_queries(
         for var in variables_to_return:
             result[var] = str(scope.get(var, None))
         return result
+    except asyncio.TimeoutError:
+        return {"status": "failed", "error": f"Execution timed out after {timeout} seconds"}
+    
     except Exception as e:
         return {"status": "failed", "error": str(e)}
 
@@ -94,7 +97,6 @@ Executes a multi-line Matplotlib script using exec() and saves the chart as PNG.
         exec(queries, {}, scope)
         
     try:
-
         await asyncio.wait_for(asyncio.to_thread(exec_code), timeout=timeout)
         exec(queries, {}, scope)
         result = {"status": "success"}

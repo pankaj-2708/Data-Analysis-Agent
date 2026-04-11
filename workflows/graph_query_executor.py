@@ -17,6 +17,7 @@ import warnings
 warnings.filterwarnings("ignore")
 load_dotenv()
 from langchain_ollama import ChatOllama
+from typing import Optional
 
 
 async def load_tools():
@@ -41,12 +42,14 @@ async def load_tools():
 tools = asyncio.run(load_tools())
 tools = [i for i in tools if i.name == "run_graph_queries"]
 
+max_run_count=5
 
-model_for_graph_query_executor = model = ChatOllama(model="qwen2.5-coder:3b").bind_tools(tools)
+model_for_graph_query_executor =ChatOllama(model="gemma4:31b-cloud").bind_tools(tools)
 
 
 class schema_for_graph_query_executor(TypedDict):
     messages: Annotated[BaseMessage, add_messages]
+    run_count: int 
 
 
 sys_prompt_for_graph_query_executor = """
@@ -64,18 +67,20 @@ CRITICAL RULES — YOU MUST FOLLOW THESE WITHOUT EXCEPTION:
 - ALWAYS use plt.savefig("<exact_image_file_path>") to save the figure
 - ALWAYS call plt.close() after saving to free memory
 - Use full file paths for both saving the image and loading the CSV
-
 """
 
 
 def chat_node_for_graph_query_executor(state: schema_for_graph_query_executor):
+    if state['run_count']>max_run_count:
+        return 
+    
     pr = [
         SystemMessage(content=sys_prompt_for_graph_query_executor),
         *state["messages"],
     ]
     res = model_for_graph_query_executor.invoke(pr)
 
-    return {"messages": [res]}
+    return {"messages": [res],"run_count":state['run_count']+1}
 
 
 graph = StateGraph(schema_for_graph_query_executor)
