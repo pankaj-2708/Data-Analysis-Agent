@@ -140,7 +140,7 @@ The dataset is perfectly balanced, ensuring no bias toward any specific species 
 | Iris-versicolor | 50 | 33.33% |
 | Iris-virginica | 50 | 33.33% |
 
-![Species Distribution](C:/Users/panka/genai_project/data_analysis_agent/data/species_count_bar.png)
+![Species Distribution](./data/species_count_bar.png)
 
 ---
 
@@ -177,24 +177,24 @@ Using the IQR method, only **SepalWidthCm** exhibited outliers (4 instances). Z-
 ### Feature Distributions
 The histograms below illustrate the overall spread of measurements. Petal length and width show clear gaps or bimodality, highlighting the separation between *Setosa* and the other species.
 
-![Sepal Length Distribution](C:/Users/panka/genai_project/data_analysis_agent/data/sepal_length_distribution.png)
-![Sepal Width Distribution](C:/Users/panka/genai_project/data_analysis_agent/data/sepal_width_distribution.png)
-![Petal Length Distribution](C:/Users/panka/genai_project/data_analysis_agent/data/petal_length_distribution.png)
-![Petal Width Distribution](C:/Users/panka/genai_project/data_analysis_agent/data/petal_width_distribution.png)
+![Sepal Length Distribution](./data/sepal_length_distribution.png)
+![Sepal Width Distribution](./data/sepal_width_distribution.png)
+![Petal Length Distribution](./data/petal_length_distribution.png)
+![Petal Width Distribution](./data/petal_width_distribution.png)
 
 ### Species Comparison
 Box plots and violin plots emphasize that *Iris-setosa* is significantly smaller in petal size, while *Iris-virginica* generally possesses the largest dimensions.
 
-![Species Box Plots](C:/Users/panka/genai_project/data_analysis_agent/data/species_box_plots.png)
-![Petal Density Violin](C:/Users/panka/genai_project/data_analysis_agent/data/petal_density_violin.png)
+![Species Box Plots](./data/species_box_plots.png)
+![Petal Density Violin](./data/petal_density_violin.png)
 
 ### Correlation and Clustering
 There is a very strong positive correlation between **Petal Length and Petal Width (0.96)**. The scatter plots and pair plots confirm that petal measurements are the most effective features for clustering the three species.
 
-![Feature Correlation Heatmap](C:/Users/panka/genai_project/data_analysis_agent/data/feature_correlation_heatmap.png)
-![Sepal Scatter Analysis](C:/Users/panka/genai_project/data_analysis_agent/data/sepal_scatter_analysis.png)
-![Petal Scatter Analysis](C:/Users/panka/genai_project/data_analysis_agent/data/petal_scatter_analysis.png)
-![Iris Pair Plot](C:/Users/panka/genai_project/data_analysis_agent/data/iris_pair_plot.png)
+![Feature Correlation Heatmap](./data/feature_correlation_heatmap.png)
+![Sepal Scatter Analysis](./data/sepal_scatter_analysis.png)
+![Petal Scatter Analysis](./data/petal_scatter_analysis.png)
+![Iris Pair Plot](./data/iris_pair_plot.png)
 
 ---
 
@@ -209,7 +209,7 @@ Comparing the mean measurements reveals a clear hierarchy in size across the thr
 | **Iris-versicolor** | 4.260 | 1.326 | 5.936 | 2.770 |
 | **Iris-virginica** | 5.552 | 2.026 | 6.588 | 2.974 |
 
-![Species Feature Averages](C:/Users/panka/genai_project/data_analysis_agent/data/species_feature_averages.png)
+![Species Feature Averages](./data/species_feature_averages.png)
 
 ### Derived Metrics & Segmentation
 - **Petal Ratio:** A ratio of Petal Length to Width is an excellent differentiator for *Iris-setosa* (Mean Ratio: 7.08) compared to others (~3.0).
@@ -222,8 +222,8 @@ Comparing the mean measurements reveals a clear hierarchy in size across the thr
 - **Most Consistent:** *Iris-versicolor* has the most consistent sepal width (lowest variance).
 - **Extreme Boundaries:** The shortest sepal lengths are exclusively found in *Iris-setosa*, while the longest are exclusively *Iris-virginica*.
 
-![Petal Bubble Chart](C:/Users/panka/genai_project/data_analysis_agent/data/petal_bubble_chart.png)
-![Petal Density Contour](C:/Users/panka/genai_project/data_analysis_agent/data/petal_density_contour.png)
+![Petal Bubble Chart](./data/petal_bubble_chart.png)
+![Petal Density Contour](./data/petal_density_contour.png)
 
 ---
 
@@ -275,10 +275,10 @@ The dataset contains financial records with the following characteristics:
 - **Expenses:** 266 transactions
 - **Income:** 1 transaction
 
-![Income vs Expense Distribution](C:/Users/panka/genai_project/data_analysis_agent/data/income_vs_expense_pie.png)
+![Income vs Expense Distribution](./data/income_vs_expense_pie.png)
 *The pie chart highlights a massive imbalance, with the dataset consisting almost entirely of expenses.*
 
-![Amount Distribution](C:/Users/panka/genai_project/data_analysis_agent/data/amount_distribution_histogram.png)
+![Amount Distribution](./data/amount_distribution_histogram.png)
 *The histogram reveals the common spending ranges, showing a concentration of small-value transactions.*
 
 ---
@@ -293,7 +293,7 @@ There are **14 unique categories**. The most frequent categories are:
 4. **Education:** 14 occurrences
 5. **Groceries:** 11 occurrences
 
-![Category Frequency](C:/Users/panka/genai_project/data_analysis_agent/data/category_frequency_bar.png)
+![Category Frequency](./data/category_frequency_bar.png)
 
 ### Expenditure by Category
 | Category name | Total Expenditure |
@@ -312,7 +312,7 @@ There are **14 unique categories**. The most frequent categories are:
 | **Travel** | -1.10 |
 | **Gifts** | -0.21 |
 
-![Total Spending by Category](C:/Users/panka/genai_project/data_analysis_agent/data/total_spending_by_category.png)
+![Total Spending by Category](./data/total_spending_by_category.png)
 
 **Insight:** **Food & Drink** and **Shopping** are the dominant cost drivers, accounting for approximately **75%** of the total overall expenditure.
 
@@ -324,10 +324,10 @@ There are **14 unique categories**. The most frequent categories are:
 - **Highest Spending Months:** August 2025 (~-37.10) and January 2026 (~-35.93).
 - **Gaps in Data:** No recorded expenses in May and June 2025.
 
-![Daily Financial Trend](C:/Users/panka/genai_project/data_analysis_agent/data/daily_financial_trend_line.png)
+![Daily Financial Trend](./data/daily_financial_trend_line.png)
 *The line chart visualizes the volatility of daily cash flows.*
 
-![Cumulative Expense Growth](C:/Users/panka/genai_project/data_analysis_agent/data/cumulative_expense_area.png)
+![Cumulative Expense Growth](./data/cumulative_expense_area.png)
 *The area chart tracks the growth of total spending over the observed period.*
 
 ---
@@ -358,7 +358,7 @@ Interestingly, the 80/20 rule does not apply here. Approximately **92% of catego
 - **Net Cash Flow:** The total net impact is **268.89** (Total Income - Total Expenses).
 - **Documentation Gap:** Only **14.29%** of high-value transactions (top 10%) have associated notes. However, transactions with notes tend to have a higher average value (-1.58 vs -0.70), suggesting a slight correlation between expense size and the likelihood of adding a description.
 - **Spending Hierarchy:**
-![Spending Hierarchy Sunburst](C:/Users/panka/genai_project/data_analysis_agent/data/spending_hierarchy_sunburst.png)
+![Spending Hierarchy Sunburst](./data/spending_hierarchy_sunburst.png)
 
 ## 🏁 Conclusion
 The financial profile is characterized by a high volume of low-to-mid-value expenses, primarily managed through **UPI**. The primary spending drivers are **Food & Drink** and **Shopping**, with a relatively stable spending pattern in entertainment but high volatility in shopping and groceries.
